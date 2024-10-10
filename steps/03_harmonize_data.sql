@@ -78,9 +78,9 @@ create or replace view weather_forecast as select postal_code, avg(avg_temperatu
 -- We use the data provided by Cybersyn to limit our pipeline to 
 -- US cities with atleast 100k residents to enjoy all the benefits a big city provides during our vacation.
 create or replace view major_us_cities as select geo.geo_id, geo.geo_name, max(ts.value) total_population
-  from government_essentials.cybersyn.datacommons_timeseries ts
-  join government_essentials.cybersyn.geography_index geo on ts.geo_id = geo.geo_id
-  join government_essentials.cybersyn.geography_relationships geo_rel on geo_rel.related_geo_id = geo.geo_id
+  from global_Government.cybersyn.datacommons_timeseries ts
+  join global_Government.cybersyn.geography_index geo on ts.geo_id = geo.geo_id
+  join global_Government.cybersyn.geography_relationships geo_rel on geo_rel.related_geo_id = geo.geo_id
   where true
     and ts.variable_name = 'Total Population, census.gov'
     and date >= '2020-01-01'
@@ -92,8 +92,8 @@ create or replace view major_us_cities as select geo.geo_id, geo.geo_name, max(t
 
 -- Using the geography relationships provided by Cybersyn we collect all the zip codes belonging to a city.
 create or replace view zip_codes_in_city as select city.geo_id city_geo_id, city.geo_name city_geo_name, city.related_geo_id zip_geo_id, city.related_geo_name zip_geo_name
-  from us_points_of_interest__addresses.cybersyn.geography_relationships country
-  join us_points_of_interest__addresses.cybersyn.geography_relationships city on country.related_geo_id = city.geo_id
+  from US_ADDRESSES__POI.cybersyn.geography_relationships country
+  join US_ADDRESSES__POI.cybersyn.geography_relationships city on country.related_geo_id = city.geo_id
   where true
     and country.geo_id = 'country/USA'
     and city.level = 'City'
@@ -112,3 +112,19 @@ create or replace view weather_joined_with_major_cities as
   join zip_codes_in_city zip on city.geo_id = zip.city_geo_id
   join weather_forecast weather on zip.zip_geo_name = weather.postal_code
   group by city.geo_id, city.geo_name, city.total_population;
+
+
+create or replace view attractions as select
+    city.geo_id,
+    city.geo_name,
+    count(case when category_main = 'Aquarium' THEN 1 END) aquarium_cnt,
+    count(case when category_main = 'Zoo' THEN 1 END) zoo_cnt,
+    count(case when category_main = 'Korean Restaurant' THEN 1 END) korean_restaurant_cnt,
+from US_ADDRESSES__POI.cybersyn.point_of_interest_index poi
+join US_ADDRESSES__POI.cybersyn.point_of_interest_addresses_relationships poi_add on poi_add.poi_id = poi.poi_id
+join US_ADDRESSES__POI.cybersyn.us_addresses address on address.address_id = poi_add.address_id
+join major_us_cities city on city.geo_id = address.id_city
+where true
+    and category_main in ('Aquarium', 'Zoo', 'Korean Restaurant')
+    and id_country = 'country/USA'
+group by city.geo_id, city.geo_name;
